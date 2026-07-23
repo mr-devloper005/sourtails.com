@@ -194,14 +194,41 @@ function ArticleDetail({ post, related, comments }: { post: SitePost; related: S
   const images = getImages(post)
   return (
     <>
-      <article className="mx-auto max-w-4xl px-6 py-14 sm:py-20">
-        <BackLink task="article" />
-        <p className="mt-10 text-xs font-medium uppercase tracking-[0.28em] text-[var(--tk-accent)]">{categoryOf(post, 'Article')}</p>
-        <h1 className="editable-display mt-5 text-balance text-4xl font-semibold leading-[1.06] tracking-[-0.03em] sm:text-5xl lg:text-[3.4rem]">{post.title}</h1>
-        <div className="mt-6 text-sm text-[var(--tk-muted)]">
-          <span>{SITE_CONFIG.name}</span>
+      <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-[var(--slot4-cta,#a544d9)]/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 top-20 h-72 w-72 rounded-full bg-[var(--tk-accent)]/10 blur-3xl" />
+        <div className="relative mx-auto max-w-4xl px-6 pt-10 pb-6 sm:pt-14">
+          <BackLink task="article" />
+          <div className="ea-hero-in ea-hero-in-1 mt-8 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--tk-text)] bg-[var(--tk-surface)] px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.22em]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--tk-accent)]" /> {categoryOf(post, 'Reads')}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--tk-muted)]">
+              {new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+          <h1 className="ea-hero-in ea-hero-in-2 editable-display mt-6 text-balance text-4xl font-black leading-[1.02] tracking-[-0.02em] sm:text-5xl lg:text-[3.6rem]">
+            <span className="ea-underline">{post.title}</span>
+          </h1>
+          <div className="ea-hero-in ea-hero-in-3 mt-6 flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--tk-accent)] text-[11px] font-black uppercase text-white">
+              {SITE_CONFIG.name.slice(0, 2).toUpperCase()}
+            </span>
+            <div>
+              <p className="text-sm font-bold text-[var(--tk-text)]">Published on {SITE_CONFIG.name}</p>
+              <p className="text-xs text-[var(--tk-muted)]">Around a {Math.max(3, Math.ceil((getBody(post) || '').length / 900))} min read</p>
+            </div>
+          </div>
         </div>
-        {images[0] ? <img src={images[0]} alt="" className="mt-10 aspect-[16/9] w-full rounded-[var(--tk-radius)] border border-[var(--tk-line)] object-cover" /> : null}
+      </section>
+      <article className="mx-auto max-w-4xl px-6 pb-14 sm:pb-20">
+        {images[0] ? (
+          <img
+            src={images[0]}
+            alt=""
+            className="ea-hero-in ea-hero-in-4 mt-6 aspect-[16/9] w-full rounded-3xl border border-[var(--tk-line)] object-cover shadow-[0_18px_48px_rgba(28,26,23,0.14)]"
+          />
+        ) : null}
         <BodyContent post={post} />
         <EditableArticleComments slug={post.slug} comments={comments} />
       </article>
@@ -220,33 +247,52 @@ function ListingDetail({ post, related }: { post: SitePost; related: SitePost[] 
   const website = getField(post, ['website', 'url'])
   const mapSrc = mapSrcFor(post)
   return (
-    <section className="mx-auto max-w-[var(--editable-container)] px-6 py-14 sm:py-20 lg:px-8">
-      <BackLink task="listing" />
-      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <article className="min-w-0">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-raised)]">
+    <>
+      <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-[var(--slot4-cta,#a544d9)]/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 top-20 h-72 w-72 rounded-full bg-[var(--tk-accent)]/10 blur-3xl" />
+        <div className="relative mx-auto max-w-[var(--editable-container)] px-6 pt-10 pb-8 sm:pt-14 lg:px-10">
+          <BackLink task="listing" />
+          <div className="ea-hero-in ea-hero-in-1 mt-8 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--tk-text)] bg-[var(--tk-surface)] px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--tk-accent)]" /> Business listing
+            </span>
+            {getField(post, ['category']) ? (
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--tk-muted)]">{getField(post, ['category'])}</span>
+            ) : null}
+          </div>
+          <div className="ea-hero-in ea-hero-in-2 mt-6 flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[var(--tk-line)] bg-[var(--tk-raised)] sm:h-28 sm:w-28">
               {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Building2 className="h-12 w-12 text-[var(--tk-muted)]" />}
             </div>
             <div className="min-w-0">
-              <Kicker task="listing">Business listing</Kicker>
-              <h1 className="editable-display mt-4 text-4xl font-semibold leading-[1.04] tracking-[-0.03em] sm:text-5xl">{post.title}</h1>
+              <h1 className="editable-display text-balance text-4xl font-black leading-[1.02] tracking-[-0.02em] sm:text-5xl lg:text-[3.4rem]">
+                <span className="ea-underline">{post.title}</span>
+              </h1>
               <DetailMeta post={post} category={getField(post, ['category'])} />
             </div>
           </div>
-          {leadText(post) ? <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--tk-muted)]">{leadText(post)}</p> : null}
-          <InfoGrid items={[['Location', address, MapPin], ['Phone', phone, Phone], ['Email', email, Mail], ['Website', website, Globe2]]} />
-          <Divider />
-          <BodyContent post={post} />
-          <ImageStrip images={images.slice(1)} label="Showcase" />
-        </article>
-        <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-          {mapSrc ? <MapBox src={mapSrc} label={address || post.title} /> : null}
-          <ContactAction website={website} phone={phone} email={email} />
-          <RelatedPanel task="listing" post={post} related={related} />
-        </aside>
-      </div>
-    </section>
+          {leadText(post) ? (
+            <p className="ea-hero-in ea-hero-in-3 mt-6 max-w-3xl text-lg leading-8 text-[var(--tk-muted)]">{leadText(post)}</p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-[var(--editable-container)] px-6 pb-16 sm:pb-20 lg:px-10">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <article className="min-w-0">
+            <InfoGrid items={[['Location', address, MapPin], ['Phone', phone, Phone], ['Email', email, Mail], ['Website', website, Globe2]]} />
+            <Divider />
+            <BodyContent post={post} />
+            <ImageStrip images={images.slice(1)} label="Showcase" />
+          </article>
+          <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+            {mapSrc ? <MapBox src={mapSrc} label={address || post.title} /> : null}
+            <RelatedPanel task="listing" related={related} />
+          </aside>
+        </div>
+      </section>
+    </>
   )
 }
 
@@ -258,7 +304,6 @@ function ClassifiedDetail({ post, related }: { post: SitePost; related: SitePost
   const condition = getField(post, ['condition', 'availability', 'type'])
   const phone = getField(post, ['phone', 'telephone', 'mobile'])
   const email = getField(post, ['email'])
-  const website = getField(post, ['website', 'url'])
   return (
     <>
       <section className="mx-auto grid max-w-[var(--editable-container)] gap-10 px-6 py-14 sm:py-20 lg:grid-cols-[360px_minmax(0,1fr)] lg:px-8">
@@ -282,7 +327,6 @@ function ClassifiedDetail({ post, related }: { post: SitePost; related: SitePost
         <article className="min-w-0">
           <ImageStrip images={images} label="Offer images" large />
           <BodyContent post={post} />
-          <ContactAction website={website} phone={phone} email={email} />
         </article>
       </section>
       <RelatedStrip task="classified" related={related} />
@@ -376,7 +420,7 @@ function PdfDetail({ post, related }: { post: SitePost; related: SitePost[] }) {
               <Link href={fileUrl} target="_blank" rel="noreferrer" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--tk-accent)] px-5 py-3 text-sm font-semibold text-[var(--tk-on-accent)] transition hover:opacity-90">Download <Download className="h-4 w-4" /></Link>
             </div>
           ) : null}
-          <RelatedPanel task="pdf" post={post} related={related} />
+          <RelatedPanel task="pdf" related={related} />
         </aside>
       </div>
     </section>
@@ -387,8 +431,6 @@ function PdfDetail({ post, related }: { post: SitePost; related: SitePost[] }) {
 function ProfileDetail({ post, related }: { post: SitePost; related: SitePost[] }) {
   const images = getImages(post)
   const role = getField(post, ['role', 'designation', 'company', 'location'])
-  const website = getField(post, ['website', 'url'])
-  const email = getField(post, ['email'])
   return (
     <>
       <section className="mx-auto max-w-[var(--editable-container)] px-6 py-14 sm:py-20 lg:px-8">
@@ -402,7 +444,6 @@ function ProfileDetail({ post, related }: { post: SitePost; related: SitePost[] 
               <h1 className="editable-display mt-6 text-2xl font-semibold tracking-[-0.02em]">{post.title}</h1>
               {role ? <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-[var(--tk-accent)]">{role}</p> : null}
               <DetailMeta post={post} center />
-              <ContactAction website={website} email={email} bare />
             </div>
           </aside>
           <article className="min-w-0">
@@ -467,24 +508,6 @@ function MapBox({ src, label }: { src: string; label: string }) {
   )
 }
 
-function ContactAction({ website, phone, email, bare = false }: { website?: string; phone?: string; email?: string; bare?: boolean }) {
-  if (!website && !phone && !email) return null
-  const buttons = (
-    <div className={`flex flex-wrap gap-2.5 ${bare ? 'justify-center' : ''}`}>
-      {website ? <Link href={website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-[var(--tk-accent)] px-4 py-2.5 text-sm font-semibold text-[var(--tk-on-accent)] transition hover:opacity-90">Website <ExternalLink className="h-4 w-4" /></Link> : null}
-      {phone ? <a href={`tel:${phone}`} className="inline-flex items-center gap-2 rounded-full border border-[var(--tk-line)] px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--tk-accent)]"><Phone className="h-4 w-4" /> Call</a> : null}
-      {email ? <a href={`mailto:${email}`} className="inline-flex items-center gap-2 rounded-full border border-[var(--tk-line)] px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--tk-accent)]"><Mail className="h-4 w-4" /> Email</a> : null}
-    </div>
-  )
-  if (bare) return <div className="mt-6">{buttons}</div>
-  return (
-    <div className="rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] p-6">
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--tk-muted)]">Quick actions</p>
-      <div className="mt-4">{buttons}</div>
-    </div>
-  )
-}
-
 function BadgeLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--tk-line)] bg-[var(--tk-raised)] px-4 py-3 text-sm">
@@ -494,7 +517,7 @@ function BadgeLine({ label, value }: { label: string; value: string }) {
   )
 }
 
-function RelatedPanel({ task, post, related }: { task: TaskKey; post: SitePost; related: SitePost[] }) {
+function RelatedPanel({ task, related }: { task: TaskKey; related: SitePost[] }) {
   const taskConfig = getTaskConfig(task)
   return (
     <div className="space-y-6">

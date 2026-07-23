@@ -29,10 +29,16 @@ function uniquePosts(posts: SitePost[]) {
 }
 
 export default async function HomePage() {
-  const primaryTask = (SITE_CONFIG.tasks.find((task) => task.enabled)?.key || 'article') as TaskKey
+  // Homepage is listing-only: force primaryTask to 'listing' so the hero,
+  // cards, rails, and time collections all render business listings.
+  const listingEnabled = SITE_CONFIG.tasks.some((task) => task.enabled && task.key === 'listing')
+  const primaryTask: TaskKey = listingEnabled
+    ? 'listing'
+    : ((SITE_CONFIG.tasks.find((task) => task.enabled)?.key || 'listing') as TaskKey)
   const primaryRoute = SITE_CONFIG.taskViews[primaryTask] || `/${primaryTask}`
   const taskFeed: TaskFeedItem[] = await fetchHomeTaskFeed(12, { timeoutMs: 2500 })
-  const primaryPosts = uniquePosts(taskFeed.find(({ task }) => task.key === primaryTask)?.posts || taskFeed.flatMap(({ posts }) => posts)).slice(0, 24)
+  const listingFeed = taskFeed.find(({ task }) => task.key === primaryTask)?.posts || []
+  const primaryPosts = uniquePosts(listingFeed).slice(0, 24)
   const timeSections: HomeTimeSection[] = await fetchHomeTimeSections(primaryTask, { limit: 8, timeoutMs: 2500 })
   const baseUrl = SITE_CONFIG.baseUrl.replace(/\/$/, '')
 

@@ -3,52 +3,54 @@ import { slot4BrandConfig } from '@/editable/theme/brand.config'
 export const globalContent = {
   site: {
     name: slot4BrandConfig.siteName,
-    tagline: slot4BrandConfig.tagline || 'Independent reading platform',
+    tagline: slot4BrandConfig.tagline || 'Stories, guides & community picks',
     domain: slot4BrandConfig.domain,
     baseUrl: slot4BrandConfig.baseUrl,
   },
   nav: {
-    tagline: 'Independent reading platform',
+    tagline: 'Stories · Listings · Community',
     primaryLinks: [
-      { label: 'Articles', href: '/articles' },
-      { label: 'Visuals', href: '/image-sharing' },
-      { label: 'Listings', href: '/listings' },
+      { label: 'Home', href: '/' },
+      { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' },
+      { label: 'Search', href: '/search' },
     ],
     actions: {
-      primary: { label: 'Start exploring', href: '/' },
-      secondary: { label: 'Submit', href: '/contact' },
+      primary: { label: 'Write a story', href: '/create' },
+      secondary: { label: 'Contact', href: '/contact' },
     },
   },
   footer: {
-    tagline: 'Stories, resources, and discoverable posts',
-    description: 'A connected publishing surface for articles, visuals, listings, profiles, bookmarks, and downloadable resources.',
+    tagline: 'A friendly place to read, publish & discover.',
+    description: `Publish your own writing and reach a curious, engaged community — ${slot4BrandConfig.siteName} is a friendly place to share stories, guides, and useful listings.`,
     columns: [
-      {
-        title: 'Explore',
-        links: [
-          { label: 'Articles', href: '/articles' },
-          { label: 'Listings', href: '/listings' },
-          { label: 'Images', href: '/image-sharing' },
-          { label: 'PDF Library', href: '/pdf' },
-        ],
-      },
       {
         title: 'Site',
         links: [
+          { label: 'Home', href: '/' },
           { label: 'About', href: '/about' },
           { label: 'Contact', href: '/contact' },
+          { label: 'Search', href: '/search' },
+        ],
+      },
+      {
+        title: 'Support',
+        links: [
+          { label: 'Privacy Policy', href: '/about' },
+          { label: 'FAQ', href: '/about' },
+          { label: 'Our Network', href: '/about' },
+          { label: 'Partner With Us', href: '/contact' },
         ],
       },
     ],
-    bottomNote: 'Built for clean discovery and connected publishing.',
+    bottomNote: 'Made with care — story-first, community-driven.',
   },
   commonLabels: {
-    readMore: 'Read more',
-    viewAll: 'View all',
+    readMore: 'Read the story',
+    viewAll: 'See all',
     explore: 'Explore',
     latest: 'Latest',
-    related: 'Related',
+    related: 'You might also like',
     published: 'Published',
   },
 } as const

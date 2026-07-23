@@ -1,14 +1,26 @@
 import Link from 'next/link'
-import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Download, FileText, Globe, MapPin, Phone, Search, Star, UserRound } from 'lucide-react'
+import { ArrowRight, ChevronDown, Radio, Search as SearchIcon, Sparkles } from 'lucide-react'
 import { buildTaskMetadata } from '@/lib/seo'
 import { CATEGORY_OPTIONS, normalizeCategory } from '@/lib/categories'
-import { fetchPaginatedTaskPosts, buildPostUrl } from '@/lib/task-data'
-import { getTaskConfig, type TaskKey } from '@/lib/site-config'
+import { fetchPaginatedTaskPosts } from '@/lib/task-data'
+import { getTaskConfig, SITE_CONFIG, type TaskKey } from '@/lib/site-config'
 import type { SiteFeedPagination, SitePost } from '@/lib/site-connector'
 import { taskPageMetadata } from '@/config/site.content'
 import { taskPageVoices } from '@/editable/content/task-pages.content'
 import { EditableSiteShell } from '@/editable/shell/EditableSiteShell'
 import { getTaskTheme, taskThemeStyle } from '@/editable/theme/task-themes'
+import {
+  ArticleListCard,
+  CompactIndexCard,
+  EditorialFeatureCard,
+  EditorialListItem,
+  MediaTileCard,
+  NewsCard,
+  RailPostCard,
+  getEditableCategory,
+  postHref,
+  toPlainText,
+} from '@/editable/cards/PostCards'
 
 export const revalidate = 3
 
@@ -19,47 +31,7 @@ export const taskMetadata = (task: TaskKey, path: string) =>
     description: taskPageMetadata[task]?.description,
   })
 
-const getContent = (post: SitePost) => post.content && typeof post.content === 'object' ? post.content as Record<string, unknown> : {}
-const asText = (value: unknown) => typeof value === 'string' ? value.trim() : ''
-const isUrl = (value: string) => value.startsWith('/') || /^https?:\/\//i.test(value)
-
-const getImages = (post: SitePost) => {
-  const content = getContent(post)
-  const media = Array.isArray(post.media) ? post.media.map((item) => item?.url).filter((url): url is string => typeof url === 'string' && isUrl(url)) : []
-  const images = Array.isArray(content.images) ? content.images.filter((url): url is string => typeof url === 'string' && isUrl(url)) : []
-  const image = asText(content.image) || asText(content.featuredImage) || asText(content.thumbnail)
-  const logo = asText(content.logo)
-  return [...media, ...images, ...(isUrl(image) ? [image] : []), ...(isUrl(logo) ? [logo] : [])].filter(Boolean).slice(0, 8)
-}
-
-const placeholder = '/placeholder.svg?height=900&width=1200'
-const getImage = (post: SitePost) => getImages(post)[0] || placeholder
-const getCategory = (post: SitePost, fallback: string) => asText(getContent(post).category) || post.tags?.[0] || fallback
-// Reduce any content payload — rich HTML, entity-encoded HTML, or plain text — to a clean
-// plain-text card summary. Two tag-strip passes (before + after entity decode) also catch
-// entity-encoded markup like &lt;p&gt; so category/archive cards never show raw markup.
-const stripHtml = (value: string) => value
-  .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-  .replace(/<[^>]+>/g, ' ')
-  .replace(/&nbsp;/gi, ' ')
-  .replace(/&amp;/gi, '&')
-  .replace(/&lt;/gi, '<')
-  .replace(/&gt;/gi, '>')
-  .replace(/&quot;/gi, '"')
-  .replace(/&#0?39;|&apos;/gi, "'")
-  .replace(/<[^>]+>/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim()
-const getSummary = (post: SitePost) => stripHtml(post.summary || asText(getContent(post).description) || asText(getContent(post).excerpt) || asText(getContent(post).body))
-const getField = (post: SitePost, keys: string[]) => {
-  const content = getContent(post)
-  for (const key of keys) {
-    const value = asText(content[key])
-    if (value) return value
-  }
-  return ''
-}
-const cleanDomain = (value: string) => value.replace(/^https?:\/\//, '').replace(/\/$/, '')
+const container = 'mx-auto w-full max-w-[var(--editable-container)] px-4 sm:px-6 lg:px-10'
 
 function pageHref(basePath: string, category: string, page: number) {
   const params = new URLSearchParams()
@@ -69,18 +41,17 @@ function pageHref(basePath: string, category: string, page: number) {
   return query ? `${basePath}?${query}` : basePath
 }
 
-const taskGrid: Record<TaskKey, string> = {
-  article: 'grid gap-7 md:grid-cols-2 xl:grid-cols-3',
-  listing: 'grid gap-5 xl:grid-cols-2',
-  classified: 'grid gap-5 sm:grid-cols-2 xl:grid-cols-3',
-  image: 'columns-1 gap-5 [column-fill:_balance] sm:columns-2 xl:columns-3',
-  sbm: 'grid gap-5 md:grid-cols-2 xl:grid-cols-3',
-  pdf: 'grid gap-5 md:grid-cols-2 xl:grid-cols-3',
-  profile: 'grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+function dedupePosts(posts: SitePost[]) {
+  const seen = new Set<string>()
+  const out: SitePost[] = []
+  for (const post of posts) {
+    const key = post.slug || post.id || post.title
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(post)
+  }
+  return out
 }
-
-// Shared premium surface: hairline border, soft radius, smooth lift on hover.
-const cardBase = 'group block rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] transition duration-500 hover:-translate-y-1.5 hover:shadow-[0_32px_72px_rgba(15,23,42,0.14)]'
 
 export async function EditableTaskArchiveRoute({
   task,
@@ -96,10 +67,30 @@ export async function EditableTaskArchiveRoute({
   const category = resolved.category ? normalizeCategory(resolved.category) : 'all'
   const taskConfig = getTaskConfig(task)
   const { posts, pagination } = await fetchPaginatedTaskPosts(task, { page, limit: 24, category })
-  return <TaskArchiveView task={task} posts={posts} pagination={pagination} category={category} basePath={basePath || taskConfig?.route || `/${task}`} />
+  return (
+    <TaskArchiveView
+      task={task}
+      posts={posts}
+      pagination={pagination}
+      category={category}
+      basePath={basePath || taskConfig?.route || `/${task}`}
+    />
+  )
 }
 
-export function TaskArchiveView({ task, posts, pagination, category, basePath }: { task: TaskKey; posts: SitePost[]; pagination: SiteFeedPagination; category: string; basePath: string }) {
+export function TaskArchiveView({
+  task,
+  posts,
+  pagination,
+  category,
+  basePath,
+}: {
+  task: TaskKey
+  posts: SitePost[]
+  pagination: SiteFeedPagination
+  category: string
+  basePath: string
+}) {
   const taskConfig = getTaskConfig(task)
   const voice = taskPageVoices[task]
   const theme = getTaskTheme(task)
@@ -107,261 +98,348 @@ export function TaskArchiveView({ task, posts, pagination, category, basePath }:
   const label = taskConfig?.label || task
   const categoryLabel = category === 'all' ? 'All categories' : CATEGORY_OPTIONS.find((item) => item.slug === category)?.name || category
 
+  const deduped = dedupePosts(posts)
+  const [heroA, heroB, ...rest] = deduped
+  const railPool = deduped.slice(2, 14)
+  const railDoubled = railPool.length ? [...railPool, ...railPool] : []
+  const magazineLists = deduped.slice(2, 6)
+  const magazineNews = deduped.slice(6, 10)
+  const magazineMedia = deduped.slice(10, 14)
+  const rankedPool = deduped.slice(14, 20)
+  const horizontalPool = deduped.slice(20, 24)
+
+  const chipCategories = Array.from(
+    new Set(
+      deduped
+        .slice(0, 8)
+        .map((post) => getEditableCategory(post))
+        .filter(Boolean)
+    )
+  ).slice(0, 5)
+
+  const heroWord = label.split(/\s+/)[0] || label
+  const heroTitleLead =
+    voice?.headline?.replace(new RegExp(`\\b${heroWord}\\b.*$`, 'i'), '').trim() ||
+    voice?.headline ||
+    `Discover the best ${label.toLowerCase()}`
+
   return (
     <EditableSiteShell>
-      <main style={taskThemeStyle(task)} className="min-h-screen bg-[var(--tk-bg)] text-[var(--tk-text)]">
-        <header className="relative overflow-hidden border-b border-[var(--tk-line)]">
-          <div className="pointer-events-none absolute inset-x-0 -top-40 h-96 bg-[radial-gradient(60%_60%_at_50%_0%,var(--tk-glow),transparent_70%)]" />
-          <div className="relative mx-auto max-w-[var(--editable-container)] px-6 py-20 sm:py-28 lg:px-8">
-            <div className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.34em] text-[var(--tk-accent)]">
-              <span>{theme.kicker}</span>
-              <span className="h-1 w-1 rounded-full bg-[var(--tk-accent)] opacity-50" />
-              <span className="text-[var(--tk-muted)]">{label}</span>
+      <main style={taskThemeStyle(task)} className="min-h-screen bg-[var(--slot4-page-bg)] text-[var(--slot4-page-text)]">
+        {/* ============== HERO (mirrors EditableHomeHero) ============== */}
+        <section className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-[var(--slot4-cta)]/10 blur-3xl" />
+          <div className="pointer-events-none absolute -right-24 top-40 h-72 w-72 rounded-full bg-[var(--slot4-accent)]/10 blur-3xl" />
+
+          <div className={`${container} pt-10 pb-8 sm:pt-14 lg:pt-16`}>
+            <div className="ea-hero-in ea-hero-in-1 flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--slot4-page-text)] bg-[var(--slot4-surface-bg)] px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em]">
+                <Radio className="h-3.5 w-3.5 text-[var(--slot4-accent)]" />
+                {voice?.eyebrow || theme.kicker}
+              </span>
+              <span className="text-sm font-semibold text-[var(--slot4-muted-text)]">
+                <span className="font-black text-[var(--slot4-page-text)]">{deduped.length}</span> {label.toLowerCase()} · {categoryLabel}
+              </span>
             </div>
-            <h1 className="editable-display mt-6 max-w-3xl text-balance text-[2.5rem] font-semibold leading-[1.06] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
-              {voice?.headline || `Browse ${label}`}
+
+            <h1 className="ea-hero-in ea-hero-in-2 editable-display mt-6 max-w-5xl text-balance text-4xl font-black leading-[0.98] tracking-[-0.02em] sm:text-6xl lg:text-[4.5rem]">
+              {heroTitleLead}
+              <span className="ea-underline block text-[var(--slot4-accent)]">{label.toLowerCase()} worth exploring.</span>
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--tk-muted)]">{voice?.description || theme.note}</p>
-            {voice?.chips?.length ? (
-              <div className="mt-8 flex flex-wrap gap-2.5">
-                {voice.chips.map((chip) => (
-                  <span key={chip} className="rounded-full border border-[var(--tk-line)] bg-[var(--tk-surface)] px-3.5 py-1.5 text-xs font-medium text-[var(--tk-muted)]">{chip}</span>
+
+            <p className="ea-hero-in ea-hero-in-3 mt-6 max-w-2xl text-lg leading-8 text-[var(--slot4-muted-text)]">
+              {voice?.description || theme.note}
+            </p>
+
+            <form action={basePath} className="ea-hero-in ea-hero-in-4 mt-8 flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[220px] max-w-sm">
+                <select
+                  name="category"
+                  defaultValue={category}
+                  className="h-12 w-full appearance-none rounded-full border border-[var(--slot4-page-text)] bg-[var(--slot4-surface-bg)] pl-5 pr-11 text-sm font-semibold text-[var(--slot4-page-text)] outline-none transition focus:border-[var(--slot4-accent)]"
+                  aria-label={voice?.filterLabel || 'Filter category'}
+                >
+                  <option value="all">All categories</option>
+                  {CATEGORY_OPTIONS.map((item) => (
+                    <option key={item.slug} value={item.slug}>{item.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--slot4-muted-text)]" />
+              </div>
+              <button className="inline-flex h-12 items-center gap-2 rounded-full bg-[var(--slot4-cta)] px-6 text-sm font-black uppercase tracking-[0.16em] text-white transition hover:bg-[var(--slot4-cta-hover)]">
+                <SearchIcon className="h-4 w-4" /> Apply
+              </button>
+              <Link
+                href="/search"
+                className="inline-flex h-12 items-center gap-2 rounded-full border-2 border-[var(--slot4-page-text)] px-5 text-sm font-black uppercase tracking-[0.16em] text-[var(--slot4-page-text)] transition hover:bg-[var(--slot4-page-text)] hover:text-[var(--slot4-page-bg)]"
+              >
+                Search all
+              </Link>
+            </form>
+
+            {chipCategories.length ? (
+              <div className="ea-hero-in ea-hero-in-4 mt-6 flex flex-wrap gap-2">
+                <span className="mr-2 pt-2 text-[11px] font-black uppercase tracking-[0.2em] text-[var(--slot4-muted-text)]">Popular:</span>
+                {chipCategories.map((chip) => (
+                  <Link
+                    key={chip}
+                    href={`/search?q=${encodeURIComponent(chip)}`}
+                    className="rounded-full border border-[var(--editable-border)] bg-[var(--slot4-surface-bg)] px-4 py-1.5 text-xs font-bold text-[var(--slot4-page-text)] transition hover:border-[var(--slot4-accent)] hover:text-[var(--slot4-accent)]"
+                  >
+                    {chip}
+                  </Link>
                 ))}
               </div>
             ) : null}
+          </div>
 
-            <div className="mt-12 flex flex-col gap-4 border-t border-[var(--tk-line)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-[var(--tk-muted)]">
-                <span className="font-semibold text-[var(--tk-text)]">{posts.length}</span> {posts.length === 1 ? 'post' : 'posts'} · {categoryLabel}
-              </p>
-              <form action={basePath} className="flex items-center gap-2.5">
-                <div className="relative">
-                  <select
-                    name="category"
-                    defaultValue={category}
-                    className="h-11 appearance-none rounded-full border border-[var(--tk-line)] bg-[var(--tk-surface)] pl-4 pr-10 text-sm font-medium text-[var(--tk-text)] outline-none transition focus:border-[var(--tk-accent)]"
-                    aria-label={voice?.filterLabel || 'Filter category'}
-                  >
-                    <option value="all">All categories</option>
-                    {CATEGORY_OPTIONS.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--tk-muted)]" />
+          {heroA || heroB ? (
+            <div className={`${container} pb-10`}>
+              <div className="grid gap-6 lg:grid-cols-2">
+                {heroA ? (
+                  <div className="ea-hero-in ea-hero-in-3">
+                    <EditorialFeatureCard
+                      post={heroA}
+                      href={`${basePath}/${heroA.slug}`}
+                      label={`Featured ${label.toLowerCase().replace(/s$/, '')}`}
+                    />
+                  </div>
+                ) : null}
+                {heroB ? (
+                  <div className="ea-hero-in ea-hero-in-4">
+                    <EditorialFeatureCard
+                      post={heroB}
+                      href={`${basePath}/${heroB.slug}`}
+                      label={`New this week`}
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              {rest.length ? (
+                <div className="ea-marquee mt-10 overflow-hidden rounded-3xl border border-[var(--editable-border)] bg-[var(--slot4-surface-bg)] py-4">
+                  <div className="ea-marquee-track flex w-max items-center gap-8 px-6 text-sm font-black uppercase tracking-[0.24em] text-[var(--slot4-page-text)]">
+                    {Array.from({ length: 2 }).flatMap((_, dup) =>
+                      rest.slice(0, 10).map((post, i) => (
+                        <span key={`${dup}-${post.slug || post.id || i}`} className="flex shrink-0 items-center gap-3">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--slot4-accent)]" />
+                          <Link href={postHref(task, post, basePath)} className="whitespace-nowrap hover:text-[var(--slot4-accent)]">
+                            {toPlainText(post.title).slice(0, 60)}
+                          </Link>
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <button className="inline-flex h-11 items-center rounded-full bg-[var(--tk-accent)] px-5 text-sm font-semibold text-[var(--tk-on-accent)] transition hover:opacity-90">Apply</button>
-              </form>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
+        {/* ============== EMPTY STATE ============== */}
+        {!deduped.length ? (
+          <section className={container}>
+            <div className="mx-auto max-w-xl rounded-3xl border border-dashed border-[var(--editable-border)] bg-[var(--slot4-surface-bg)] p-10 text-center">
+              <SearchIcon className="mx-auto h-7 w-7 text-[var(--slot4-muted-text)]" />
+              <h2 className="editable-display mt-5 text-2xl font-black tracking-[-0.02em]">Nothing here yet</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--slot4-muted-text)]">
+                Try another category, or check back after new {label.toLowerCase()} are published.
+              </p>
+            </div>
+          </section>
+        ) : null}
+
+        {/* ============== 3-COLUMN MAGAZINE (mirrors EditableMagazineSplit) ============== */}
+        {(magazineLists.length || magazineNews.length || magazineMedia.length) ? (
+          <section className="relative py-14 sm:py-20">
+            <div className={container}>
+              <div className="grid gap-10 lg:grid-cols-3">
+                {[
+                  { key: 'lists', title: `New ${label}`, accent: 'text-[var(--slot4-accent)]', posts: magazineLists, variant: 'list' as const },
+                  { key: 'news', title: `Featured ${label}`, accent: 'text-[var(--slot4-cta)]', posts: magazineNews, variant: 'news' as const },
+                  { key: 'videos', title: `Community picks`, accent: 'text-[var(--slot4-accent)]', posts: magazineMedia, variant: 'media' as const },
+                ].map((column) => (
+                  <div key={column.key} className="min-w-0">
+                    <div className="mb-6 flex items-end justify-between border-b-2 border-[var(--slot4-page-text)] pb-3">
+                      <h2 className={`editable-display text-2xl font-black tracking-[-0.02em] sm:text-3xl ${column.accent}`}>
+                        {column.title}
+                      </h2>
+                      <Link
+                        href={basePath}
+                        className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--slot4-muted-text)] transition hover:text-[var(--slot4-accent)]"
+                      >
+                        See all
+                      </Link>
+                    </div>
+
+                    <div className="grid gap-5">
+                      {column.posts.map((post, index) => {
+                        const href = `${basePath}/${post.slug}`
+                        if (column.variant === 'list') {
+                          return <EditorialListItem key={post.id || post.slug} post={post} href={href} index={index} />
+                        }
+                        if (column.variant === 'news') {
+                          if (index === 0) return <NewsCard key={post.id || post.slug} post={post} href={href} />
+                          return <EditorialListItem key={post.id || post.slug} post={post} href={href} index={index} />
+                        }
+                        return <MediaTileCard key={post.id || post.slug} post={post} href={href} index={index} />
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {/* ============== AUTO RAIL (mirrors EditableStoryRail) ============== */}
+        {railDoubled.length ? (
+          <section className="relative border-y border-[var(--editable-border)] bg-[var(--slot4-warm)] py-16">
+            <div className={`${container} mb-8`}>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[var(--slot4-accent)]">Fresh in the {label.toLowerCase()}</p>
+                  <h2 className="editable-display mt-2 text-3xl font-black tracking-[-0.02em] sm:text-4xl">Most recent picks</h2>
+                </div>
+                <Link
+                  href={basePath}
+                  className="hidden items-center gap-1 text-sm font-bold text-[var(--slot4-cta)] hover:underline sm:inline-flex"
+                >
+                  Browse all <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+            <div className="ea-marquee relative overflow-hidden">
+              <div className="ea-marquee-track ea-marquee-slow flex w-max gap-5 px-4 sm:px-6 lg:px-10">
+                {railDoubled.map((post, index) => (
+                  <div key={`${post.slug || post.id}-${index}`}>
+                    <RailPostCard post={post} href={`${basePath}/${post.slug}`} index={index % railPool.length} />
+                  </div>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-[linear-gradient(90deg,var(--slot4-warm)_0%,transparent_100%)]" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-[linear-gradient(270deg,var(--slot4-warm)_0%,transparent_100%)]" />
+            </div>
+          </section>
+        ) : null}
+
+        {/* ============== HORIZONTAL EDITORIAL ============== */}
+        {horizontalPool.length ? (
+          <section className="py-16 sm:py-20">
+            <div className={container}>
+              <div className="mb-10 flex flex-col gap-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[var(--slot4-cta)]">Editor picks</p>
+                <h2 className="editable-display text-3xl font-black tracking-[-0.02em] sm:text-5xl">
+                  Handpicked {label.toLowerCase()}
+                </h2>
+                <p className="max-w-2xl text-sm text-[var(--slot4-muted-text)]">A curated selection worth spending more time with.</p>
+              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                {horizontalPool.map((post, index) => (
+                  <ArticleListCard
+                    key={post.id || post.slug}
+                    post={post}
+                    href={`${basePath}/${post.slug}`}
+                    index={index}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {/* ============== RANKED LIST ============== */}
+        {rankedPool.length ? (
+          <section className="border-y border-[var(--editable-border)] bg-[var(--slot4-warm)] py-16 sm:py-20">
+            <div className={container}>
+              <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[var(--slot4-accent)]">Trending now</p>
+                  <h2 className="editable-display mt-2 text-3xl font-black tracking-[-0.02em] sm:text-4xl">
+                    What people are exploring
+                  </h2>
+                </div>
+                <Link
+                  href={basePath}
+                  className="inline-flex items-center gap-1 text-sm font-bold text-[var(--slot4-cta)] hover:underline"
+                >
+                  See all <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {rankedPool.map((post, index) => (
+                  <CompactIndexCard
+                    key={post.id || post.slug}
+                    post={post}
+                    href={`${basePath}/${post.slug}`}
+                    index={index}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {/* ============== PAGINATION ============== */}
+        {deduped.length ? (
+          <section className={`${container} py-12`}>
+            <nav className="flex items-center justify-center gap-3 text-sm">
+              {pagination.hasPrevPage ? (
+                <Link
+                  href={pageHref(basePath, category, page - 1)}
+                  className="rounded-full border border-[var(--editable-border)] bg-[var(--slot4-surface-bg)] px-5 py-2.5 font-black uppercase tracking-[0.14em] transition hover:border-[var(--slot4-accent)] hover:text-[var(--slot4-accent)]"
+                >
+                  Previous
+                </Link>
+              ) : null}
+              <span className="rounded-full bg-[var(--slot4-page-text)] px-5 py-2.5 font-black uppercase tracking-[0.14em] text-[var(--slot4-page-bg)]">
+                Page {page} of {pagination.totalPages || 1}
+              </span>
+              {pagination.hasNextPage ? (
+                <Link
+                  href={pageHref(basePath, category, page + 1)}
+                  className="rounded-full bg-[var(--slot4-cta)] px-5 py-2.5 font-black uppercase tracking-[0.14em] text-white transition hover:bg-[var(--slot4-cta-hover)]"
+                >
+                  Next
+                </Link>
+              ) : null}
+            </nav>
+          </section>
+        ) : null}
+
+        {/* ============== CTA BAND ============== */}
+        <section className="py-16 sm:py-24">
+          <div className={container}>
+            <div className="relative overflow-hidden rounded-[2rem] bg-[var(--slot4-page-text)] px-6 py-14 text-center shadow-[0_24px_60px_rgba(28,26,23,0.25)] sm:px-12 sm:py-20">
+              <div className="pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-[var(--slot4-cta)]/40 blur-3xl" />
+              <div className="pointer-events-none absolute -right-16 -bottom-16 h-56 w-56 rounded-full bg-[var(--slot4-accent)]/40 blur-3xl" />
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.22em] text-white">
+                <Sparkles className="h-3.5 w-3.5" /> Add yours
+              </span>
+              <h2 className="editable-display mx-auto mt-6 max-w-3xl text-4xl font-black leading-[1.02] tracking-[-0.02em] text-white sm:text-5xl">
+                Have a {label.toLowerCase().replace(/s$/, '')} to add?
+              </h2>
+              <p className="mx-auto mt-5 max-w-xl text-base text-white/80 sm:text-lg">
+                Publish it on {SITE_CONFIG.name} and reach a community actively browsing the {label.toLowerCase()}.
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/create"
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--slot4-cta)] px-7 py-3.5 text-sm font-black uppercase tracking-[0.16em] text-white transition hover:bg-[var(--slot4-cta-hover)]"
+                >
+                  Add now <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm font-bold uppercase tracking-[0.14em] text-white transition hover:bg-white/10"
+                >
+                  Contact us
+                </Link>
+              </div>
             </div>
           </div>
-        </header>
-
-        <section className="mx-auto max-w-[var(--editable-container)] px-6 py-16 sm:py-20 lg:px-8">
-          {posts.length ? (
-            <div className={taskGrid[task]}>
-              {posts.map((post, index) => <ArchivePostCard key={post.id || post.slug} post={post} task={task} basePath={basePath} index={index} />)}
-            </div>
-          ) : (
-            <div className="mx-auto max-w-xl rounded-[var(--tk-radius)] border border-dashed border-[var(--tk-line)] bg-[var(--tk-surface)] px-8 py-16 text-center">
-              <Search className="mx-auto h-7 w-7 text-[var(--tk-muted)]" />
-              <h2 className="editable-display mt-5 text-2xl font-semibold tracking-[-0.02em]">Nothing here yet</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--tk-muted)]">Try another category, or check back after new {label.toLowerCase()} are published.</p>
-            </div>
-          )}
-
-          {posts.length ? (
-            <nav className="mt-16 flex items-center justify-center gap-3 text-sm">
-              {pagination.hasPrevPage ? <Link href={pageHref(basePath, category, page - 1)} className="rounded-full border border-[var(--tk-line)] px-5 py-2.5 font-medium transition hover:border-[var(--tk-accent)]">Previous</Link> : null}
-              <span className="rounded-full border border-[var(--tk-line)] bg-[var(--tk-surface)] px-5 py-2.5 font-medium text-[var(--tk-muted)]">Page {page} of {pagination.totalPages || 1}</span>
-              {pagination.hasNextPage ? <Link href={pageHref(basePath, category, page + 1)} className="rounded-full border border-[var(--tk-line)] px-5 py-2.5 font-medium transition hover:border-[var(--tk-accent)]">Next</Link> : null}
-            </nav>
-          ) : null}
         </section>
       </main>
     </EditableSiteShell>
-  )
-}
-
-function ArchivePostCard({ post, task, basePath, index }: { post: SitePost; task: TaskKey; basePath: string; index: number }) {
-  const href = `${basePath}/${post.slug}` || buildPostUrl(task, post.slug)
-  if (task === 'listing') return <ListingArchiveCard post={post} href={href} />
-  if (task === 'classified') return <ClassifiedArchiveCard post={post} href={href} />
-  if (task === 'image') return <ImageArchiveCard post={post} href={href} index={index} />
-  if (task === 'sbm') return <BookmarkArchiveCard post={post} href={href} index={index} />
-  if (task === 'pdf') return <PdfArchiveCard post={post} href={href} />
-  if (task === 'profile') return <ProfileArchiveCard post={post} href={href} />
-  return <ArticleArchiveCard post={post} href={href} index={index} />
-}
-
-function CardArrow({ label }: { label: string }) {
-  return (
-    <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tk-accent)]">
-      {label}
-      <ArrowUpRight className="h-4 w-4 transition duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-    </span>
-  )
-}
-
-// Yelp-style red star ratings. Prefers real rating/review fields, falls back to
-// a stable derived value so the UI always reads well (wire to real data later).
-const hashStr = (value: string) => {
-  let h = 0
-  for (let i = 0; i < value.length; i += 1) h = (h * 31 + value.charCodeAt(i)) >>> 0
-  return h
-}
-const ratingOf = (post: SitePost) => {
-  const real = Number(getContent(post).rating)
-  if (real >= 1 && real <= 5) return Math.round(real * 10) / 10
-  return Math.round((3.7 + (hashStr(post.slug || post.id || post.title || 'x') % 13) / 10) * 10) / 10
-}
-const reviewsOf = (post: SitePost) => {
-  const real = Number(getContent(post).reviewCount ?? getContent(post).reviews)
-  if (real > 0) return Math.floor(real)
-  return 6 + (hashStr((post.slug || post.title || 'x') + 'r') % 480)
-}
-
-function RatingLine({ post, center = false }: { post: SitePost; center?: boolean }) {
-  const rating = ratingOf(post)
-  const filled = Math.round(rating)
-  return (
-    <div className={`mt-2.5 flex items-center gap-2 ${center ? 'justify-center' : ''}`}>
-      <span className="inline-flex items-center gap-[3px]">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Star key={i} className={`h-4 w-4 ${i < filled ? 'fill-[var(--tk-accent)] text-[var(--tk-accent)]' : 'fill-[var(--tk-line)] text-[var(--tk-line)]'}`} />
-        ))}
-      </span>
-      <span className="text-sm font-semibold text-[var(--tk-text)]">{rating.toFixed(1)}</span>
-      <span className="text-sm text-[var(--tk-muted)]">({reviewsOf(post)})</span>
-    </div>
-  )
-}
-
-function ArticleArchiveCard({ post, href, index }: { post: SitePost; href: string; index: number }) {
-  const image = getImage(post)
-  const category = getCategory(post, 'Article')
-  return (
-    <Link href={href} className={`${cardBase} overflow-hidden`}>
-      <div className="aspect-[16/10] overflow-hidden bg-[var(--tk-raised)]">
-        <img src={image} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]" />
-      </div>
-      <div className="p-6 sm:p-7">
-        <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--tk-accent)]">
-          <span>{category}</span>
-          <span className="text-[var(--tk-muted)]">· No. {String(index + 1).padStart(2, '0')}</span>
-        </div>
-        <h2 className="editable-display mt-3 text-2xl font-semibold leading-snug tracking-[-0.02em]">{post.title}</h2>
-        <RatingLine post={post} />
-        <p className="mt-3 line-clamp-2 text-[15px] leading-7 text-[var(--tk-muted)]">{getSummary(post)}</p>
-        <CardArrow label="Read article" />
-      </div>
-    </Link>
-  )
-}
-
-function ListingArchiveCard({ post, href }: { post: SitePost; href: string }) {
-  const logo = getImages(post)[0]
-  const location = getField(post, ['location', 'address', 'city'])
-  const phone = getField(post, ['phone', 'telephone', 'mobile'])
-  const website = getField(post, ['website', 'url'])
-  return (
-    <Link href={href} className={`${cardBase} flex items-center gap-5 p-5 sm:p-6`}>
-      <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[1rem] border border-[var(--tk-line)] bg-[var(--tk-raised)]">
-        {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <BriefcaseBusiness className="h-9 w-9 text-[var(--tk-muted)]" />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <h2 className="editable-display truncate text-xl font-semibold tracking-[-0.02em]">{post.title}</h2>
-        <RatingLine post={post} />
-        <p className="mt-2 line-clamp-1 text-sm leading-6 text-[var(--tk-muted)]">{getSummary(post)}</p>
-        <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-[var(--tk-muted)]">
-          {location ? <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-[var(--tk-accent)]" /> {location}</span> : null}
-          {phone ? <span className="inline-flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[var(--tk-accent)]" /> {phone}</span> : null}
-          {website ? <span className="inline-flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 text-[var(--tk-accent)]" /> Website</span> : null}
-        </div>
-      </div>
-      <ArrowUpRight className="h-5 w-5 shrink-0 text-[var(--tk-muted)] transition group-hover:text-[var(--tk-accent)]" />
-    </Link>
-  )
-}
-
-function ClassifiedArchiveCard({ post, href }: { post: SitePost; href: string }) {
-  const price = getField(post, ['price', 'amount', 'budget'])
-  const location = getField(post, ['location', 'address', 'city'])
-  const condition = getField(post, ['condition', 'type', 'availability'])
-  return (
-    <Link href={href} className={`${cardBase} flex flex-col p-6 sm:p-7`}>
-      <div className="flex items-start justify-between gap-4">
-        <span className="editable-display text-3xl font-semibold tracking-[-0.03em] text-[var(--tk-accent)]">{price || 'Open offer'}</span>
-        {condition ? <span className="rounded-full bg-[var(--tk-accent-soft)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--tk-accent)]">{condition}</span> : null}
-      </div>
-      <h2 className="editable-display mt-5 text-xl font-semibold leading-snug tracking-[-0.02em]">{post.title}</h2>
-      <RatingLine post={post} />
-      <p className="mt-3 line-clamp-3 flex-1 text-sm leading-7 text-[var(--tk-muted)]">{getSummary(post)}</p>
-      <div className="mt-6 flex items-center justify-between border-t border-[var(--tk-line)] pt-4 text-xs font-medium text-[var(--tk-muted)]">
-        <span className="inline-flex items-center gap-1.5">{location ? <><MapPin className="h-3.5 w-3.5" /> {location}</> : 'Details inside'}</span>
-        <ArrowUpRight className="h-4 w-4 text-[var(--tk-accent)] transition group-hover:translate-x-0.5" />
-      </div>
-    </Link>
-  )
-}
-
-function ImageArchiveCard({ post, href, index }: { post: SitePost; href: string; index: number }) {
-  const image = getImage(post)
-  return (
-    <Link href={href} className="group mb-5 block break-inside-avoid overflow-hidden rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] transition duration-300 hover:-translate-y-1">
-      <div className={`relative overflow-hidden ${index % 3 === 0 ? 'aspect-[3/4]' : 'aspect-[4/3]'}`}>
-        <img src={image} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgba(0,0,0,0.78))] opacity-80 transition group-hover:opacity-100" />
-        <div className="absolute inset-x-0 bottom-0 p-5">
-          <h2 className="editable-display line-clamp-2 text-lg font-semibold leading-snug tracking-[-0.02em] text-white">{post.title}</h2>
-          <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-white/70">View image <ArrowUpRight className="h-3.5 w-3.5" /></span>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function BookmarkArchiveCard({ post, href, index }: { post: SitePost; href: string; index: number }) {
-  const website = getField(post, ['website', 'url', 'link'])
-  return (
-    <Link href={href} className={`${cardBase} flex gap-4 p-6`}>
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--tk-accent-soft)] text-[var(--tk-accent)]">
-        <Globe className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--tk-muted)]">Saved · {String(index + 1).padStart(2, '0')}</span>
-        <h2 className="editable-display mt-1.5 text-lg font-semibold leading-snug tracking-[-0.02em]">{post.title}</h2>
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--tk-muted)]">{getSummary(post)}</p>
-        {website ? <p className="mt-3 truncate text-xs font-medium text-[var(--tk-accent)]">{cleanDomain(website)}</p> : null}
-      </div>
-    </Link>
-  )
-}
-
-function PdfArchiveCard({ post, href }: { post: SitePost; href: string }) {
-  const category = getCategory(post, 'Document')
-  return (
-    <Link href={href} className={`${cardBase} flex flex-col p-6 sm:p-7`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--tk-accent-soft)] text-[var(--tk-accent)]"><FileText className="h-6 w-6" /></div>
-        <span className="rounded-full border border-[var(--tk-line)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--tk-muted)]">{category}</span>
-      </div>
-      <h2 className="editable-display mt-6 text-xl font-semibold leading-snug tracking-[-0.02em]">{post.title}</h2>
-      <RatingLine post={post} />
-      <p className="mt-3 line-clamp-3 flex-1 text-sm leading-7 text-[var(--tk-muted)]">{getSummary(post)}</p>
-      <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tk-accent)]">Open document <Download className="h-4 w-4" /></span>
-    </Link>
-  )
-}
-
-function ProfileArchiveCard({ post, href }: { post: SitePost; href: string }) {
-  const avatar = getImages(post)[0]
-  const role = getField(post, ['role', 'designation', 'company', 'location'])
-  return (
-    <Link href={href} className={`${cardBase} flex flex-col items-center p-7 text-center`}>
-      <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-[var(--tk-line)] bg-[var(--tk-raised)]">
-        {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : <UserRound className="h-10 w-10 text-[var(--tk-muted)]" />}
-      </div>
-      <h2 className="editable-display mt-5 text-lg font-semibold tracking-[-0.02em]">{post.title}</h2>
-      {role ? <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.16em] text-[var(--tk-accent)]">{role}</p> : null}
-      <RatingLine post={post} center />
-      <p className="mt-3 line-clamp-2 text-sm leading-6 text-[var(--tk-muted)]">{getSummary(post)}</p>
-    </Link>
   )
 }

@@ -203,9 +203,6 @@ function ArticleDetail({ post, related, comments }: { post: SitePost; related: S
             <span className="inline-flex items-center gap-2 rounded-full border border-[var(--tk-text)] bg-[var(--tk-surface)] px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.22em]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--tk-accent)]" /> {categoryOf(post, 'Reads')}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--tk-muted)]">
-              {new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
           </div>
           <h1 className="ea-hero-in ea-hero-in-2 editable-display mt-6 text-balance text-4xl font-black leading-[1.02] tracking-[-0.02em] sm:text-5xl lg:text-[3.6rem]">
             <span className="ea-underline">{post.title}</span>
